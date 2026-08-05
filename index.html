@@ -43,6 +43,25 @@
     --maxw:920px;
   }
 
+  html[data-theme="light"]{
+    --bg:#F7F8FA;
+    --surface:#FFFFFF;
+    --surface-2:#F0F2F5;
+    --border:#DCE0E6;
+    --border-soft:#E7EAEE;
+    --text:#151A21;
+    --text-dim:#5B6472;
+    --text-faint:#8A93A1;
+    --amber:#B3791A;
+    --teal:#0F9D74;
+    --amber-dim:rgba(179,121,26,0.10);
+    --teal-dim:rgba(15,157,116,0.10);
+  }
+
+  body, .record, .proj, .chip, .stage, .contact-row a, .stack span, .footer-links a{
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+
   *{box-sizing:border-box;}
   html{scroll-behavior:smooth;}
   @media (prefers-reduced-motion: reduce){
@@ -95,6 +114,25 @@
   .navlinks a:hover{color:var(--amber);}
   .navlinks{display:none;}
   @media (min-width:680px){ .navlinks{display:flex;} }
+
+  .nav-right{display:flex; align-items:center; gap:24px;}
+
+  .theme-toggle{
+    position:relative; width:36px; height:36px; border-radius:8px;
+    background:var(--surface); border:1px solid var(--border);
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    padding:0; transition:border-color 0.15s ease, background-color 0.2s ease;
+  }
+  .theme-toggle:hover{border-color:var(--amber);}
+  .theme-toggle:focus-visible{outline:2px solid var(--teal); outline-offset:2px;}
+  .theme-icon{
+    position:absolute; font-size:15px; line-height:1; color:var(--amber);
+    transition:opacity 0.15s ease, transform 0.15s ease;
+  }
+  .theme-icon-dark{opacity:1; transform:scale(1);}
+  .theme-icon-light{opacity:0; transform:scale(0.5);}
+  html[data-theme="light"] .theme-icon-dark{opacity:0; transform:scale(0.5);}
+  html[data-theme="light"] .theme-icon-light{opacity:1; transform:scale(1);}
 
   /* ---------- HERO ---------- */
   header.hero{padding:72px 0 56px;}
@@ -283,13 +321,19 @@
 <nav>
   <div class="wrap">
     <a class="brand" href="#top">SHG<span class="dot">.</span></a>
-    <ul class="navlinks">
-      <li><a href="#experience">Experience</a></li>
-      <li><a href="#projects">Projects</a></li>
-      <li><a href="#skills">Skills</a></li>
-      <li><a href="#education">Education</a></li>
-      <li><a href="#contact">Contact</a></li>
-    </ul>
+    <div class="nav-right">
+      <ul class="navlinks">
+        <li><a href="#experience">Experience</a></li>
+        <li><a href="#projects">Projects</a></li>
+        <li><a href="#skills">Skills</a></li>
+        <li><a href="#education">Education</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+      <button class="theme-toggle" id="themeToggle" aria-label="Switch to light theme" title="Switch theme">
+        <span class="theme-icon theme-icon-dark">☾</span>
+        <span class="theme-icon theme-icon-light">☀</span>
+      </button>
+    </div>
   </div>
 </nav>
 
@@ -589,6 +633,34 @@
 </footer>
 
 <script>
+  // theme toggle: respects saved choice, falls back to system preference
+  (function(){
+    const root = document.documentElement;
+    const toggle = document.getElementById('themeToggle');
+    const stored = localStorage.getItem('theme');
+    const systemPrefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+    const initial = stored || (systemPrefersLight ? 'light' : 'dark');
+    if (initial === 'light') root.setAttribute('data-theme', 'light');
+
+    function updateLabel(){
+      const isLight = root.getAttribute('data-theme') === 'light';
+      toggle.setAttribute('aria-label', isLight ? 'Switch to dark theme' : 'Switch to light theme');
+    }
+    updateLabel();
+
+    toggle.addEventListener('click', function(){
+      const isLight = root.getAttribute('data-theme') === 'light';
+      if (isLight) {
+        root.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        root.setAttribute('data-theme', 'light');
+        localStorage.setItem('theme', 'light');
+      }
+      updateLabel();
+    });
+  })();
+
   // scroll reveal
   const els = document.querySelectorAll('.reveal');
   if ('IntersectionObserver' in window) {
