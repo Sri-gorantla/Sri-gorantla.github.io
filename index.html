@@ -266,6 +266,24 @@
   .proj-body li:last-child{margin-bottom:0;}
   .proj-body li::marker{color:var(--teal);}
 
+  .dash-preview{
+    display:block; margin-top:16px; text-decoration:none;
+    border:1px solid var(--border); border-radius:8px; overflow:hidden;
+    background:var(--surface-2);
+  }
+  .dash-preview img{
+    display:block; width:100%; height:auto; border-bottom:1px solid var(--border);
+    transition:opacity 0.15s ease;
+  }
+  .dash-preview:hover img{opacity:0.9;}
+  .dash-caption{
+    display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:11.5px; color:var(--text-dim);
+    padding:8px 12px;
+  }
+  .dash-preview:hover .dash-caption{color:var(--amber);}
+  .dash-caption .arrow{color:var(--teal);}
+
   /* ---------- SKILLS ---------- */
   .skill-groups{display:grid; grid-template-columns:1fr; gap:22px;}
   @media (min-width:680px){ .skill-groups{grid-template-columns:1fr 1fr;} }
@@ -470,6 +488,10 @@
             <li>Diagnosed a flawed geo-mismatch signal triggering on 83% of transactions, redefined it around rapid location change between consecutive transactions — reduced the trigger rate to a realistic 4.5%.</li>
             <li>Documented a full architecture decision record, data dictionary, and operational runbook alongside the codebase.</li>
           </ul>
+          <a href="fraud-dashboard.png" target="_blank" rel="noopener" class="dash-preview">
+            <img src="fraud-dashboard.png" alt="Power BI dashboard showing fraud detection KPIs, fraud rate by channel and category, detection rate by fraud type, and a risk score accuracy table" loading="lazy">
+            <span class="dash-caption">Power BI dashboard — click to view full size <span class="arrow">↗</span></span>
+          </a>
         </div>
       </div>
 
