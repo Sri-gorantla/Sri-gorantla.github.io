@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fraud & Risk Analytics — Case Study | Sri Harsha Gorantla</title>
+<meta name="description" content="Case study: an end-to-end AWS fraud detection pipeline — architecture decisions, a bug caught and fixed, and the detection tradeoff that shaped the final rule.">
+
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="Fraud & Risk Analytics — Case Study">
+<meta property="og:description" content="Architecture decisions, a bug caught and fixed, and the detection tradeoff behind an end-to-end AWS fraud pipeline.">
+<meta property="og:image" content="https://sri-gorantla.github.io/og-image.png">
+<meta property="og:url" content="https://sri-gorantla.github.io/fraud-case-study.html">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Fraud & Risk Analytics — Case Study">
+<meta name="twitter:description" content="Architecture decisions, a bug caught and fixed, and the detection tradeoff behind an end-to-end AWS fraud pipeline.">
+<meta name="twitter:image" content="https://sri-gorantla.github.io/og-image.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0D1117;
+    --surface:#141A22;
+    --surface-2:#181F29;
+    --border:#252C37;
+    --border-soft:#1D2430;
+    --text:#E6EDF3;
+    --text-dim:#8B949E;
+    --text-faint:#586170;
+    --amber:#E3B341;
+    --teal:#56D4B0;
+    --red:#E5786D;
+    --amber-dim:rgba(227,179,65,0.12);
+    --teal-dim:rgba(86,212,176,0.12);
+    --red-dim:rgba(229,120,109,0.12);
+    --mono:'IBM Plex Mono', ui-monospace, monospace;
+    --sans:'IBM Plex Sans', system-ui, sans-serif;
+    --maxw:760px;
+  }
+  html[data-theme="light"]{
+    --bg:#F7F8FA; --surface:#FFFFFF; --surface-2:#F0F2F5;
+    --border:#DCE0E6; --border-soft:#E7EAEE;
+    --text:#151A21; --text-dim:#5B6472; --text-faint:#8A93A1;
+    --amber:#B3791A; --teal:#0F9D74; --red:#C6483C;
+    --amber-dim:rgba(179,121,26,0.10); --teal-dim:rgba(15,157,116,0.10); --red-dim:rgba(198,72,60,0.10);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  @media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto;} }
+  body{
+    margin:0; background:var(--bg); color:var(--text); font-family:var(--sans);
+    line-height:1.65; -webkit-font-smoothing:antialiased;
+    transition:background-color 0.2s ease, color 0.2s ease;
+  }
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none;
+    background-image:
+      linear-gradient(var(--border-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border-soft) 1px, transparent 1px);
+    background-size:64px 64px; opacity:0.35;
+    mask-image:radial-gradient(ellipse 80% 50% at 50% 0%, black 0%, transparent 70%);
+    z-index:0;
+  }
+  a{color:inherit;}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 24px; position:relative; z-index:1;}
+
+  nav{
+    position:sticky; top:0; z-index:50; background:rgba(13,17,23,0.85);
+    backdrop-filter:blur(10px); border-bottom:1px solid var(--border);
+  }
+  html[data-theme="light"] nav{background:rgba(247,248,250,0.85);}
+  nav .wrap{max-width:920px; display:flex; align-items:center; justify-content:space-between; padding-top:14px; padding-bottom:14px;}
+  .brand{font-family:var(--mono); font-size:13px; font-weight:600; color:var(--text); letter-spacing:0.02em; text-decoration:none;}
+  .brand .dot{color:var(--amber);}
+  .back-link{
+    font-family:var(--mono); font-size:12px; text-decoration:none; color:var(--text-dim);
+    display:flex; align-items:center; gap:6px; transition:color 0.15s ease;
+  }
+  .back-link:hover{color:var(--amber);}
+  .theme-toggle{
+    position:relative; width:36px; height:36px; border-radius:8px;
+    background:var(--surface); border:1px solid var(--border); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; padding:0;
+    transition:border-color 0.15s ease;
+  }
+  .theme-toggle:hover{border-color:var(--amber);}
+  .theme-icon{position:absolute; font-size:15px; color:var(--amber); transition:opacity 0.15s ease, transform 0.15s ease;}
+  .theme-icon-dark{opacity:1; transform:scale(1);}
+  .theme-icon-light{opacity:0; transform:scale(0.5);}
+  html[data-theme="light"] .theme-icon-dark{opacity:0; transform:scale(0.5);}
+  html[data-theme="light"] .theme-icon-light{opacity:1; transform:scale(1);}
+  .nav-right{display:flex; align-items:center; gap:16px;}
+
+  header.hero{padding:56px 0 40px;}
+  .eyebrow{
+    font-family:var(--mono); font-size:12px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--teal); margin:0 0 16px; display:flex; align-items:center; gap:8px;
+  }
+  .eyebrow::before{content:"▸"; color:var(--amber);}
+  h1{font-size:clamp(28px,5vw,40px); line-height:1.15; margin:0 0 16px; font-weight:700; letter-spacing:-0.02em;}
+  .lede{font-size:17px; color:var(--text-dim); margin:0 0 20px; max-width:60ch;}
+  .meta-row{display:flex; flex-wrap:wrap; gap:8px;}
+  .meta-row span{
+    font-family:var(--mono); font-size:11.5px; color:var(--text-dim);
+    border:1px solid var(--border); background:var(--surface); padding:5px 10px; border-radius:6px;
+  }
+
+  section{padding:36px 0;}
+  section + section{border-top:1px solid var(--border-soft);}
+  .s-label{
+    font-family:var(--mono); font-size:11.5px; text-transform:uppercase; letter-spacing:0.1em;
+    color:var(--text-faint); margin:0 0 10px;
+  }
+  h2{font-size:22px; font-weight:700; margin:0 0 16px; letter-spacing:-0.01em;}
+  p{color:var(--text-dim); font-size:15.5px; margin:0 0 14px;}
+  p:last-child{margin-bottom:0;}
+  strong{color:var(--text); font-weight:600;}
+
+  .decision{
+    border:1px solid var(--border); border-radius:10px; background:var(--surface);
+    padding:18px 20px; margin-bottom:14px;
+  }
+  .decision:last-child{margin-bottom:0;}
+  .decision h3{margin:0 0 8px; font-size:15px; font-weight:600;}
+  .decision .chosen{color:var(--teal); font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;}
+  .decision .rejected{
+    margin-top:10px; padding-top:10px; border-top:1px dashed var(--border);
+    font-size:13.5px; color:var(--text-faint);
+  }
+  .decision .rejected .tag{color:var(--red); font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.06em; margin-right:6px;}
+
+  .bug-box{
+    border:1px solid var(--red); background:var(--red-dim); border-radius:10px;
+    padding:20px 22px; margin:20px 0;
+  }
+  .bug-box .bug-label{
+    font-family:var(--mono); font-size:11.5px; text-transform:uppercase; letter-spacing:0.08em;
+    color:var(--red); margin-bottom:10px; display:flex; align-items:center; gap:6px;
+  }
+  .bug-box p{color:var(--text);}
+  .before-after{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px;}
+  @media (max-width:560px){ .before-after{grid-template-columns:1fr;} }
+  .ba-card{background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:14px;}
+  .ba-card .ba-label{font-family:var(--mono); font-size:11px; text-transform:uppercase; color:var(--text-faint); margin-bottom:6px;}
+  .ba-card .ba-value{font-family:var(--mono); font-size:22px; font-weight:600;}
+  .ba-card.before .ba-value{color:var(--red);}
+  .ba-card.after .ba-value{color:var(--teal);}
+
+  table{width:100%; border-collapse:collapse; margin-top:8px; font-size:14px;}
+  th, td{text-align:left; padding:10px 12px; border-bottom:1px solid var(--border-soft);}
+  th{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-faint); font-weight:500;}
+  td{color:var(--text-dim);}
+  tr.chosen-row td{color:var(--text); font-weight:600;}
+  tr.chosen-row{background:var(--teal-dim);}
+
+  .limitation{
+    border-left:3px solid var(--amber); background:var(--amber-dim);
+    padding:14px 18px; border-radius:0 8px 8px 0; margin-top:16px;
+  }
+  .limitation p{color:var(--text);}
+
+  footer{padding:48px 0 64px; text-align:center;}
+  .footer-links{display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:20px;}
+  .footer-links a{
+    font-family:var(--mono); font-size:13px; text-decoration:none; padding:10px 18px;
+    border-radius:6px; border:1px solid var(--border); background:var(--surface); color:var(--text);
+    transition:all 0.15s ease;
+  }
+  .footer-links a.primary{background:var(--amber-dim); border-color:var(--amber); color:var(--amber);}
+  .footer-links a:hover{border-color:var(--teal); color:var(--teal);}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="index.html">SHG<span class="dot">.</span></a>
+    <div class="nav-right">
+      <a class="back-link" href="index.html#projects">← Back to portfolio</a>
+      <button class="theme-toggle" id="themeToggle" aria-label="Switch theme">
+        <span class="theme-icon theme-icon-dark">☾</span>
+        <span class="theme-icon theme-icon-light">☀</span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Case study</p>
+    <h1>Fraud &amp; Risk Analytics Pipeline</h1>
+    <p class="lede">An end-to-end AWS pipeline for surfacing fraud-pattern signals from transaction data — the architecture decisions behind it, a bug I caught mid-project, and the detection tradeoff that shaped the final rule.</p>
+    <div class="meta-row">
+      <span>Python</span><span>AWS S3</span><span>Glue / PySpark</span><span>Redshift</span><span>Airflow</span><span>Power BI</span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <p class="s-label">The problem</p>
+    <h2>No systematic way to catch fraud before losses occur</h2>
+    <p>A mid-sized retail bank processes tens of thousands of card transactions daily across online, POS, and ATM channels. Fraud review happens reactively — a customer complaint or chargeback triggers investigation, but there's no repeatable way to surface risk patterns before losses occur.</p>
+    <p>The question this project set out to answer: <strong>which transaction patterns most reliably indicate fraud risk, and how well would a rule built on those patterns actually perform</strong> — what does it catch, what does it miss?</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="s-label">Architecture decisions</p>
+    <h2>What I chose, and what I rejected</h2>
+
+    <div class="decision">
+      <div class="chosen">Chosen</div>
+      <h3>S3 raw zone, kept separate from cleaned data</h3>
+      <p>Raw daily exports land untouched in S3, partitioned by date. Transformation logic can change and be rerun later without re-requesting data from source.</p>
+      <div class="rejected"><span class="tag">Rejected</span>Cleaning data at ingestion time (ETL) — this would destroy the ability to reprocess history if cleaning rules change.</div>
+    </div>
+
+    <div class="decision">
+      <div class="chosen">Chosen</div>
+      <h3>AWS Glue (PySpark), not pandas alone</h3>
+      <p>Developed and proven locally before deploying to real AWS Glue — matches the tooling expected in production data engineering roles.</p>
+      <div class="rejected"><span class="tag">Rejected</span>A pandas-only pipeline — technically simpler, but doesn't demonstrate distributed-processing skill, which was the point of building this.</div>
+    </div>
+
+    <div class="decision">
+      <div class="chosen">Chosen</div>
+      <h3>Star schema warehouse, proven in DuckDB first</h3>
+      <p>Fact + 5 dimension tables, modeled for the grouping/filtering questions the project needed to answer. Proven locally in DuckDB before deploying to Redshift, since Redshift has a real running cost.</p>
+      <div class="rejected"><span class="tag">Rejected</span>A single flat table — doesn't scale, duplicates descriptive data on every row, and skips dimensional modeling entirely.</div>
+    </div>
+
+    <div class="decision">
+      <div class="chosen">Chosen</div>
+      <h3>Idempotent loading — delete matching keys, then insert</h3>
+      <p>Identified while reasoning through what happens if an Airflow task fails mid-run and gets retried. A plain <code>INSERT</code> would silently create duplicate fact rows on rerun.</p>
+      <div class="rejected"><span class="tag">Rejected</span>Plain append-only insert — the obvious first approach, rejected once I worked through the retry scenario.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="s-label">A bug I caught mid-project</p>
+    <h2>When a "fraud signal" fired on 83% of transactions</h2>
+    <p>My first geo-mismatch signal simply compared transaction country against the customer's home country. In testing, it fired on an alarming share of all transactions — a signal that fires on nearly everything discriminates nothing.</p>
+
+    <div class="bug-box">
+      <div class="bug-label">◆ Root cause</div>
+      <p>The synthetic data generator assigns merchant country randomly, regardless of customer home country — meaning most <em>normal</em> transactions already looked "foreign" by that definition. The signal wasn't measuring fraud risk, it was measuring noise in how I'd generated the test data.</p>
+      <div class="before-after">
+        <div class="ba-card before">
+          <div class="ba-label">Before fix</div>
+          <div class="ba-value">82.73%</div>
+          <p style="margin:6px 0 0; font-size:12.5px;">trigger rate — useless as a signal</p>
+        </div>
+        <div class="ba-card after">
+          <div class="ba-label">After fix</div>
+          <div class="ba-value">4.51%</div>
+          <p style="margin:6px 0 0; font-size:12.5px;">trigger rate — plausible, usable</p>
+        </div>
+      </div>
+    </div>
+
+    <p><strong>The fix:</strong> redefine geo-mismatch to require a country change between two of the <em>same customer's own consecutive transactions</em>, within a 3-hour window — genuinely implausible travel, not just "shopped at a foreign merchant once."</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="s-label">The tradeoff</p>
+    <h2>Catching more fraud always costs more false alarms</h2>
+    <p>Six fraud-pattern signals were computed per transaction (velocity, geo-mismatch, amount anomaly, odd-hour activity, new-merchant exposure, card-not-present risk). A <code>risk_score</code> of how many signals fired simultaneously drove the final rule — and the threshold chosen was a real business tradeoff, not an arbitrary cutoff.</p>
+
+    <table>
+      <thead>
+        <tr><th>Threshold</th><th>Detection rate</th><th>False positive rate</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>≥1 signal</td><td>97.8%</td><td>46.89% — unworkable, flags nearly half of genuine customers</td></tr>
+        <tr class="chosen-row"><td>≥2 signals — chosen</td><td>85.5%</td><td>1.87%</td></tr>
+        <tr><td>≥3 signals</td><td>57.0%</td><td>0.04%</td></tr>
+        <tr><td>≥4 signals</td><td>14.5%</td><td>0.00%</td></tr>
+      </tbody>
+    </table>
+
+    <p style="margin-top:14px;">≥2 signals was chosen as the defensible tradeoff: catching 85.5% of real fraud while wrongly flagging only 1.87% of genuine customers. Threshold ≥1 catches slightly more fraud but at a false-positive cost that would be operationally unworkable for a review team.</p>
+
+    <div class="limitation">
+      <p><strong>Known limitation, reported honestly:</strong> geo-mismatch detection is the weakest-performing signal at 26.7%, partly because the injected fraud pattern in the synthetic data doesn't itself enforce rapid succession between transactions. A production version would need to either redesign the injected pattern or use a softer, distance-based geo signal over a longer window. Documented as a real gap, not hidden.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p class="s-label" style="text-align:center;">See it in action</p>
+    <h2 style="text-align:center;">The dashboard built from this analysis</h2>
+    <p style="text-align:center; max-width:52ch; margin-left:auto; margin-right:auto;">Every number on this page is visualized live on the portfolio's Power BI dashboard — detection rate, false-positive rate, and the full risk-score breakdown.</p>
+    <div class="footer-links">
+      <a class="primary" href="index.html#projects">View the dashboard</a>
+      <a href="https://github.com/Sri-gorantla" target="_blank" rel="noopener">Full code on GitHub</a>
+      <a href="index.html">Back to portfolio</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  (function(){
+    const root = document.documentElement;
+    const toggle = document.getElementById('themeToggle');
+    const stored = localStorage.getItem('theme');
+    const systemPrefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+    const initial = stored || (systemPrefersLight ? 'light' : 'dark');
+    if (initial === 'light') root.setAttribute('data-theme', 'light');
+
+    toggle.addEventListener('click', function(){
+      const isLight = root.getAttribute('data-theme') === 'light';
+      if (isLight) {
+        root.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        root.setAttribute('data-theme', 'light');
+        localStorage.setItem('theme', 'light');
+      }
+    });
+  })();
+</script>
+
+</body>
+</html>

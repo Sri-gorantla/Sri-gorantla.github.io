@@ -284,6 +284,14 @@
   .dash-preview:hover .dash-caption{color:var(--amber);}
   .dash-caption .arrow{color:var(--teal);}
 
+  .case-study-link{
+    display:flex; align-items:center; gap:6px; margin-top:10px;
+    font-family:var(--mono); font-size:12.5px; color:var(--amber); text-decoration:none;
+  }
+  .case-study-link:hover{color:var(--teal);}
+  .case-study-link .arrow{transition:transform 0.15s ease;}
+  .case-study-link:hover .arrow{transform:translateX(3px);}
+
   /* ---------- SKILLS ---------- */
   .skill-groups{display:grid; grid-template-columns:1fr; gap:22px;}
   @media (min-width:680px){ .skill-groups{grid-template-columns:1fr 1fr;} }
@@ -492,6 +500,7 @@
             <img src="fraud-dashboard.png" alt="Power BI dashboard showing fraud detection KPIs, fraud rate by channel and category, detection rate by fraud type, and a risk score accuracy table" loading="lazy">
             <span class="dash-caption">Power BI dashboard — click to view full size <span class="arrow">↗</span></span>
           </a>
+          <a href="fraud-case-study.html" class="case-study-link">Read the full case study — architecture decisions, a bug I caught, and the detection tradeoff <span class="arrow">→</span></a>
         </div>
       </div>
 
